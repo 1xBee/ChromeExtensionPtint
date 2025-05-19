@@ -1,0 +1,5 @@
+{
+  "urlPrefix": "https://example.com/print?id=",
+  "urlSuffix": "&format=pdf",
+  "allowedUrl": "example.com/deliveries"
+}
