@@ -1,20 +1,40 @@
+// Global config variable that will be loaded once
+let appConfig = null;
+
 console.log("[Content] Bulk Print Extension loaded");
 
-// Load configuration from config.json
+// Load configuration from config.json - only done once
 function loadConfig() {
+  // If we already have the config, return it as a resolved promise
+  if (appConfig !== null) {
+    console.log("[Content] Using cached configuration");
+    return Promise.resolve(appConfig);
+  }
+  
   console.log("[Content] Loading configuration from config.json");
   return fetch(chrome.runtime.getURL('config.json'))
     .then(response => response.json())
+    .then(config => {
+      // Store config globally
+      appConfig = config;
+      console.log("[Content] Configuration loaded successfully:", config);
+      return config;
+    })
     .catch(error => {
       console.error("[Content] Error loading configuration:", error);
       return {};
     });
 }
 
+// Load config immediately when script runs
+loadConfig();
+
 // Function to add the print button - only called once
 function addPrintButton() {
   console.log("[Content] Attempting to add print button to page");
-  loadConfig().then(config => {
+  
+  // Use the already loaded config or load it if not yet available
+  (appConfig ? Promise.resolve(appConfig) : loadConfig()).then(config => {
     if (config.allowedUrl && config.allowedUrl.trim() !== '') {
       // Improved URL matching logic
       const isMatch = isUrlMatch(window.location.href, config.allowedUrl.trim());
@@ -49,19 +69,17 @@ function addPrintButton() {
           // Add click event listener
           printButton.addEventListener('click', () => {
             console.log("[Content] Print button clicked");
-            // Reload config to get the latest values
-            loadConfig().then(urlConfig => {
-              if (!urlConfig.urlPrefix || urlConfig.urlPrefix.trim() === '') {
-                console.error("[Content] Error: URL prefix not configured in config.json");
-                alert('Error: URL prefix not configured in config.json.');
-                return;
-              }
-              
-              console.log("[Content] Calling bulkPrintDeliveries with config:", urlConfig);
-              bulkPrintDeliveries({
-                urlPrefix: urlConfig.urlPrefix,
-                urlSuffix: urlConfig.urlSuffix || ''
-              });
+            // Use the global config directly - no need to reload
+            if (!appConfig.urlPrefix || appConfig.urlPrefix.trim() === '') {
+              console.error("[Content] Error: URL prefix not configured in config.json");
+              alert('Error: URL prefix not configured in config.json.');
+              return;
+            }
+            
+            console.log("[Content] Calling bulkPrintDeliveries with config:", appConfig);
+            bulkPrintDeliveries({
+              urlPrefix: appConfig.urlPrefix,
+              urlSuffix: appConfig.urlSuffix || ''
             });
           });
         } else {
