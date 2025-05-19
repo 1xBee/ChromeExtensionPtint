@@ -26,51 +26,6 @@ chrome.runtime.onInstalled.addListener(() => {
 // Also load config when background script starts
 loadConfig();
 
-// Update popup based on URL when tab updates
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete') {
-    console.log(`[Background] Tab updated (ID: ${tabId}), checking if extension should be enabled`);
-    updatePopup(tab);
-  }
-});
-
-// Update popup when tab is activated
-chrome.tabs.onActivated.addListener((activeInfo) => {
-  console.log(`[Background] Tab activated (ID: ${activeInfo.tabId}), checking if extension should be enabled`);
-  chrome.tabs.get(activeInfo.tabId, (tab) => {
-    updatePopup(tab);
-  });
-});
-
-// Function to update the extension popup based on URL
-function updatePopup(tab) {
-  // If config hasn't loaded yet, load it
-  if (!appConfig) {
-    console.log('[Background] No config available, loading before updating popup');
-    loadConfig().then(config => {
-      if (config) updatePopupWithConfig(tab, config);
-    });
-    return;
-  }
-  
-  updatePopupWithConfig(tab, appConfig);
-}
-
-// Helper function to update popup with config
-function updatePopupWithConfig(tab, config) {
-  const isAllowed = config.allowedUrl && tab.url && tab.url.includes(config.allowedUrl.trim());
-  
-  console.log(`[Background] Checking URL match: "${tab.url}" includes "${config.allowedUrl}"? ${isAllowed}`);
-  
-  // Enable or disable the popup based on URL
-  chrome.action.setPopup({
-    popup: isAllowed ? 'popup.html' : '',
-    tabId: tab.id
-  });
-  
-  console.log(`[Background] Extension ${isAllowed ? 'enabled' : 'disabled'} for tab ${tab.id}`);
-}
-
 // Handle messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('[Background] Message received:', request);
