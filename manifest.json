@@ -1,12 +1,11 @@
 {
   "manifest_version": 3,
   "name": "Bulk Delivery Print",
-  "version": "1.3",
+  "version": "1.4",
   "description": "Automatically prints multiple delivery documents with one click",
   "permissions": ["activeTab", "scripting", "tabs"],
   "action": {
     "default_title": "Print Deliveries",
-    "default_popup": "popup.html",
     "default_icon": "logo-brown-small.png"
   },
   "background": {
@@ -14,7 +13,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["*://*/Deliveries"],
+      "matches": ["*://*/Deliveries", "*://*/Deliveries?*"],
       "js": ["content.js","content_dateType.js"]
     }
   ],
