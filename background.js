@@ -1,8 +1,14 @@
-// Global config variable
+// Global config variable that will be loaded once
 let appConfig = null;
 
-// Load configuration from config.json
+// Load configuration from config.json - only done once
 function loadConfig() {
+  // If we already have the config, return it as a resolved promise
+  if (appConfig !== null) {
+    console.log('[Background] Using cached configuration');
+    return Promise.resolve(appConfig);
+  }
+  
   console.log('[Background] Loading configuration from config.json');
   return fetch(chrome.runtime.getURL('config.json'))
     .then(response => response.json())
