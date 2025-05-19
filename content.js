@@ -16,10 +16,11 @@ function addPrintButton() {
   console.log("[Content] Attempting to add print button to page");
   loadConfig().then(config => {
     if (config.allowedUrl && config.allowedUrl.trim() !== '') {
-      const currentUrlMatch = window.location.href.includes(config.allowedUrl.trim());
-      console.log(`[Content] URL match check: "${window.location.href}" includes "${config.allowedUrl.trim()}"? ${currentUrlMatch}`);
+      // Improved URL matching logic
+      const isMatch = isUrlMatch(window.location.href, config.allowedUrl.trim());
+      console.log(`[Content] URL match check: "${window.location.href}" against "${config.allowedUrl.trim()}"? ${isMatch}`);
       
-      if (currentUrlMatch) {
+      if (isMatch) {
         console.log("[Content] URL match found, attempting to add print button");
         
         // Look for the target container where we'll add our button
@@ -38,7 +39,6 @@ function addPrintButton() {
           const printButton = document.createElement('button');
           printButton.type = 'button';
           printButton.className = 'btn btn-dark bulk-print-btn';
-          printButton.style.marginLeft = '4px';
           printButton.style.marginLeft = '4px';
           printButton.textContent = 'Print';
           
@@ -74,6 +74,49 @@ function addPrintButton() {
       console.log("[Content] No allowed URL configured, skipping button addition");
     }
   });
+}
+
+// Exact URL matching function
+function isUrlMatch(currentUrl, configUrl) {
+  try {
+    // Parse the URLs to get their components
+    const currentUrlObj = new URL(currentUrl);
+    
+    // If configUrl is not a full URL, assume it's just a path
+    let configUrlObj;
+    try {
+      configUrlObj = new URL(configUrl.startsWith('http') ? configUrl : `https://example.com${configUrl.startsWith('/') ? '' : '/'}${configUrl}`);
+    } catch (e) {
+      // If configUrl is not a valid URL, treat it as a path match
+      return currentUrlObj.pathname === configUrl;
+    }
+    
+    // Check if hostname matches
+    if (currentUrlObj.hostname !== configUrlObj.hostname) {
+      return false;
+    }
+    
+    // Check if pathname matches exactly
+    // Normalize paths by removing trailing slashes for comparison
+    const configPath = configUrlObj.pathname.endsWith('/') ? 
+      configUrlObj.pathname.slice(0, -1) : configUrlObj.pathname;
+    
+    const currentPath = currentUrlObj.pathname.endsWith('/') ?
+      currentUrlObj.pathname.slice(0, -1) : currentUrlObj.pathname;
+    
+    // We only want exact matches - no additional path segments allowed
+    return currentPath === configPath;
+    
+  } catch (error) {
+    console.error("[Content] Error in URL matching:", error);
+    // Fall back to exact string comparison for pathname
+    try {
+      const urlObj = new URL(currentUrl);
+      return urlObj.pathname === configUrl;
+    } catch (e) {
+      return false;
+    }
+  }
 }
 
 // Only try to add the button once the DOM is fully loaded
