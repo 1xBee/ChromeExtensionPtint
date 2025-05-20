@@ -71,73 +71,56 @@ function addPrintButton() {
         if (targetContainer) {
           console.log("[Content] Target container found");
           
-          // Check if button already exists to avoid duplicates
-          const existingButton = targetContainer.querySelector('button.bulk-print-btn');
-          if (existingButton) {
-            console.log("[Content] Print button already exists, skipping");
+          // Check if select box already exists to avoid duplicates
+          const existingSelect = targetContainer.querySelector('.print-select-container');
+          if (existingSelect) {
+            console.log("[Content] Print select box already exists, skipping");
             return;
           }
           
-          // Create the print button without dropdown
-          const printButton = document.createElement('button');
-          printButton.type = 'button';
-          printButton.className = 'btn btn-dark bulk-print-btn';
-          printButton.textContent = 'Print';
-          printButton.style.marginLeft = '4px';
+          // Create a container for the select box
+          const selectContainer = document.createElement('div');
+          selectContainer.className = 'print-select-container';
+          selectContainer.style.display = 'inline-block';
+          selectContainer.style.marginLeft = '4px';
           
-          // Append the button after the "Deliver" button
-          targetContainer.appendChild(printButton);
-          console.log("[Content] Print button successfully added to the page");
+          // Create the native HTML select element
+          const selectBox = document.createElement('select');
+          selectBox.className = 'form-control print-options-select';
+          selectBox.style.display = 'inline-block';
+          selectBox.style.width = 'auto';
+          selectBox.style.height = 'calc(1.5em + .75rem + 2px)'; // Match bootstrap button height
           
-          // Create modal for print options (hidden initially)
-          const modalHtml = `
-            <div id="printOptionsModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; 
-                 overflow: auto; background-color: rgba(0,0,0,0.4);">
-              <div style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 300px; border-radius: 5px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
-                <h4 style="margin-top: 0;">Print Options</h4>
-                <div style="display: flex; flex-direction: column; gap: 10px; margin: 20px 0;">
-                  <button id="individualPrintBtn" class="btn btn-dark" style="padding: 10px;">Individual</button>
-                  <button id="mergePrintBtn" class="btn btn-dark" style="padding: 10px;">Merge</button>
-                </div>
-                <button id="closeModalBtn" style="background: none; border: none; position: absolute; right: 10px; top: 10px; 
-                       font-size: 20px; cursor: pointer;">&times;</button>
-              </div>
-            </div>
-          `;
+          // Add default/prompt option
+          const defaultOption = document.createElement('option');
+          defaultOption.value = '';
+          defaultOption.textContent = 'Print...';
+          defaultOption.selected = true;
+          defaultOption.disabled = true;
+          selectBox.appendChild(defaultOption);
           
-          // Add modal to body
-          const modalContainer = document.createElement('div');
-          modalContainer.innerHTML = modalHtml;
-          document.body.appendChild(modalContainer);
+          // Add print options
+          const options = [
+            { value: 'individual', text: 'Individual' },
+            { value: 'merge', text: 'Merge' }
+          ];
           
-          // Get modal elements
-          const modal = document.getElementById('printOptionsModal');
-          const closeBtn = document.getElementById('closeModalBtn');
-          const individualBtn = document.getElementById('individualPrintBtn');
-          const mergeBtn = document.getElementById('mergePrintBtn');
-          
-          // Add click event listener to print button - shows modal
-          printButton.addEventListener('click', () => {
-            console.log("[Content] Print button clicked, showing options modal");
-            modal.style.display = 'block';
+          options.forEach(option => {
+            const optionElement = document.createElement('option');
+            optionElement.value = option.value;
+            optionElement.textContent = option.text;
+            selectBox.appendChild(optionElement);
           });
           
-          // Close modal when clicking the close button
-          closeBtn.addEventListener('click', () => {
-            modal.style.display = 'none';
-          });
-          
-          // Close modal when clicking outside
-          window.addEventListener('click', (event) => {
-            if (event.target === modal) {
-              modal.style.display = 'none';
-            }
-          });
-          
-          // Individual print button handler
-          individualBtn.addEventListener('click', () => {
-            console.log("[Content] Individual print option selected");
-            modal.style.display = 'none';
+          // Add change event listener to the select box
+          selectBox.addEventListener('change', () => {
+            const selectedValue = selectBox.value;
+            console.log(`[Content] ${selectedValue} print option selected`);
+            
+            // Reset select back to default option for next use
+            setTimeout(() => {
+              selectBox.selectedIndex = 0;
+            }, 100);
             
             // Use the global config directly - no need to reload
             if (!appConfig.urlPrefix || appConfig.urlPrefix.trim() === '') {
@@ -149,28 +132,16 @@ function addPrintButton() {
             bulkPrintDeliveries({
               urlPrefix: appConfig.urlPrefix,
               urlSuffix: appConfig.urlSuffix || '',
-              mode: 'individual'
+              mode: selectedValue
             });
           });
           
-          // Merge print button handler
-          mergeBtn.addEventListener('click', () => {
-            console.log("[Content] Merge print option selected");
-            modal.style.display = 'none';
-            
-            // Use the global config directly - no need to reload
-            if (!appConfig.urlPrefix || appConfig.urlPrefix.trim() === '') {
-              console.error("[Content] Error: URL prefix not configured in config.json");
-              alert('Error: URL prefix not configured in config.json.');
-              return;
-            }
-            
-            bulkPrintDeliveries({
-              urlPrefix: appConfig.urlPrefix,
-              urlSuffix: appConfig.urlSuffix || '',
-              mode: 'merge'
-            });
-          });
+          // Add the select element to the container
+          selectContainer.appendChild(selectBox);
+          
+          // Append the container after the "Deliver" button
+          targetContainer.appendChild(selectContainer);
+          console.log("[Content] Print select box successfully added to the page");
         } else {
           console.log("[Content] Target container not found, cannot add button");
         }
