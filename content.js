@@ -29,7 +29,7 @@ function loadConfig() {
 // Load config immediately when script runs
 loadConfig();
 
-// Function to add the print button - only called once
+// Function to add the print button with dropdown - only called once
 function addPrintButton() {
   console.log("[Content] Attempting to add print button to page");
   
@@ -78,16 +78,46 @@ function addPrintButton() {
             return;
           }
           
+          // Create a container for the print button and dropdown
+          const printButtonGroup = document.createElement('span');
+          printButtonGroup.className = 'bulk-print-group';
+          printButtonGroup.style.marginLeft = '4px';
+          printButtonGroup.style.display = 'inline-flex';
+          
+          // Create the print mode dropdown
+          const printModeSelect = document.createElement('select');
+          printModeSelect.className = 'bulk-print-mode form-control';
+          printModeSelect.style.marginRight = '4px';
+          printModeSelect.style.height = '100%';
+          printModeSelect.style.padding = '0 8px';
+          printModeSelect.style.borderRadius = '4px 0 0 4px';
+          
+          // Add options to the dropdown
+          const individualOption = document.createElement('option');
+          individualOption.value = 'individual';
+          individualOption.textContent = 'Individual';
+          individualOption.selected = true;
+          
+          const mergeOption = document.createElement('option');
+          mergeOption.value = 'merge';
+          mergeOption.textContent = 'Merge';
+          
+          printModeSelect.appendChild(individualOption);
+          printModeSelect.appendChild(mergeOption);
+          
           // Create the print button
           const printButton = document.createElement('button');
           printButton.type = 'button';
           printButton.className = 'btn btn-dark bulk-print-btn';
-          printButton.style.marginLeft = '4px';
           printButton.textContent = 'Print';
           
-          // Append the button after the "Deliver" button
-          targetContainer.appendChild(printButton);
-          console.log("[Content] Print button successfully added to the page");
+          // Add elements to the container
+          printButtonGroup.appendChild(printModeSelect);
+          printButtonGroup.appendChild(printButton);
+          
+          // Append the button group after the "Deliver" button
+          targetContainer.appendChild(printButtonGroup);
+          console.log("[Content] Print button with dropdown successfully added to the page");
           
           // Add click event listener
           printButton.addEventListener('click', () => {
@@ -99,10 +129,15 @@ function addPrintButton() {
               return;
             }
             
+            // Get the selected print mode
+            const printMode = printModeSelect.value;
+            console.log(`[Content] Selected print mode: ${printMode}`);
+            
             console.log("[Content] Calling bulkPrintDeliveries with config:", appConfig);
             bulkPrintDeliveries({
               urlPrefix: appConfig.urlPrefix,
-              urlSuffix: appConfig.urlSuffix || ''
+              urlSuffix: appConfig.urlSuffix || '',
+              mode: printMode
             });
           });
         } else {
@@ -201,15 +236,31 @@ function bulkPrintDeliveries(urlConfig) {
     const deliveryId = deliveryUrl.split('/').pop();
     const printUrl = `${urlConfig.urlPrefix}${deliveryId}${urlConfig.urlSuffix}`;
     console.log(`[Content] Created print URL: ${printUrl} for delivery ID: ${deliveryId}`);
-    return printUrl;
+    return { id: deliveryId, url: printUrl };
   });
 
-  // Send all URLs to background script to open simultaneously
-  console.log(`[Content] Sending message to open ${printUrls.length} tabs`);
-  chrome.runtime.sendMessage({ 
-    action: 'openAllTabs', 
-    urls: printUrls 
-  });
+  // Handle printing based on selected mode
+  if (urlConfig.mode === 'individual') {
+    // Original behavior - open multiple tabs
+    console.log(`[Content] Using individual mode, sending message to open ${printUrls.length} tabs`);
+    chrome.runtime.sendMessage({ 
+      action: 'openAllTabs', 
+      urls: printUrls.map(item => item.url)
+    });
+  } else if (urlConfig.mode === 'merge') {
+    // New behavior - open single tab with multiple iframes
+    console.log(`[Content] Using merge mode, sending message to create merged view with ${printUrls.length} items`);
+    
+    // Get base domain to construct the URL for the new tab
+    const currentUrl = new URL(window.location.href);
+    const baseUrl = `${currentUrl.protocol}//${currentUrl.hostname}`;
+    
+    chrome.runtime.sendMessage({
+      action: 'openMergedTab',
+      baseUrl: baseUrl,
+      printItems: printUrls
+    });
+  }
 
   statusElement.textContent = `Processed ${validLinks.length} deliveries`;
   console.log(`[Content] Processing complete, processed ${validLinks.length} deliveries`);
