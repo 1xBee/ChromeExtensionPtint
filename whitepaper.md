@@ -17,10 +17,12 @@ The background script runs independently of any particular tab and is responsibl
 - Opening multiple print tabs simultaneously when requested
 
 ### 3. Configuration (config.json)
-This file stores the extension's configuration settings, including:
+This file stores the extension's private configuration settings, including:
 - URL prefix for constructing print links
 - URL suffix for constructing print links
 - Allowed URL pattern for determining where the extension should be active
+
+The primary purpose of this configuration file is to keep sensitive information private rather than hardcoding it in the JavaScript files. This ensures that when the extension is distributed, specific implementation details like internal URLs and routing patterns remain private and can be easily modified without changing the codebase.
 
 ### 4. Date Input Helper (content_dateType.js)
 A small helper script that changes the input type to 'date' for better date selection.
@@ -28,63 +30,44 @@ A small helper script that changes the input type to 'date' for better date sele
 ## Design Decisions and Implementation Details
 
 ### URL Matching Logic
-The URL matching logic is a critical component that determines when to add the "Print" button. We've implemented an exact path matching algorithm that:
+The URL matching logic determines when to add the "Print" button. The extension uses exact path matching to ensure it only activates on specifically designated pages:
 
 ```javascript
-function isUrlMatch(currentUrl, configUrl) {
+// URL matching logic - match exact base path with optional query parameters
+const matchUrl = (currentUrl, configUrl) => {
   try {
-    // Parse the URLs to get their components
-    const currentUrlObj = new URL(currentUrl);
+    const current = new URL(currentUrl);
+    const config = new URL(configUrl);
     
-    // If configUrl is not a full URL, assume it's just a path
-    let configUrlObj;
-    try {
-      configUrlObj = new URL(configUrl.startsWith('http') ? configUrl : `https://example.com${configUrl.startsWith('/') ? '' : '/'}${configUrl}`);
-    } catch (e) {
-      // If configUrl is not a valid URL, treat it as a path match
-      return currentUrlObj.pathname === configUrl;
-    }
-    
-    // Check if hostname matches
-    if (currentUrlObj.hostname !== configUrlObj.hostname) {
+    // Check if hostnames match
+    if (current.hostname !== config.hostname) {
       return false;
     }
     
-    // Check if pathname matches exactly
-    // Normalize paths by removing trailing slashes for comparison
-    const configPath = configUrlObj.pathname.endsWith('/') ? 
-      configUrlObj.pathname.slice(0, -1) : configUrlObj.pathname;
+    // Check if the pathname matches exactly (normalize by removing trailing slashes)
+    const currentPath = current.pathname.endsWith('/') ? 
+      current.pathname.slice(0, -1) : current.pathname;
+    const configPath = config.pathname.endsWith('/') ? 
+      config.pathname.slice(0, -1) : config.pathname;
     
-    const currentPath = currentUrlObj.pathname.endsWith('/') ?
-      currentUrlObj.pathname.slice(0, -1) : currentUrlObj.pathname;
-    
-    // We only want exact matches - no additional path segments allowed
     return currentPath === configPath;
-    
   } catch (error) {
     console.error("[Content] Error in URL matching:", error);
-    // Fall back to exact string comparison for pathname
-    try {
-      const urlObj = new URL(currentUrl);
-      return urlObj.pathname === configUrl;
-    } catch (e) {
-      return false;
-    }
+    return false;
   }
-}
+};
 ```
 
 #### URL Matching Explanation
-1. **Why this method?**: The extension needs to match URLs precisely to avoid adding the button on unrelated pages.
-2. **What it does differently**:
-   - Matches exact base URLs only (e.g., example.com/deliveries)
-   - Allows any query parameters (e.g., example.com/deliveries?id=123)
-   - Never matches URLs with additional path segments (e.g., example.com/deliveries/edit or example.com/deliveries/123)
-   - Ignores trailing slashes for consistency (treats /deliveries and /deliveries/ as identical)
+1. **Purpose**: The extension needs to match URLs precisely to avoid adding the button on unrelated pages.
+2. **Implementation approach**:
+   - Configuration provides a complete, properly formatted URL in the config.json file
+   - Extension compares the current page URL's path against this configured URL's path
+   - Ignores query parameters, allowing the button to appear on pages with filters (e.g., `?id=123`)
+   - Button is only added when there's an exact path match
+   - Trailing slashes are normalized to prevent matching issues
 
-3. **Key design decision**: Unlike typical "starts with" URL matching patterns, this function implements strict path equality. This decision was made to ensure the extension only activates in the exact intended location, providing better control and reducing the risk of unexpected behavior.
-
-4. **Normalization of paths**: The function removes trailing slashes from both URLs before comparison to prevent false negatives when one URL has a trailing slash and the other doesn't.
+3. **Key design decision**: This implementation ensures the extension only activates on the main deliveries page, allowing for URL query parameters but preventing activation on sub-paths. This provides precise control over where the button appears and reduces the risk of unexpected behavior.
 
 ### Removal of Popup HTML and JavaScript
 The popup functionality has been removed for several reasons:
