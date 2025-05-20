@@ -54,14 +54,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       timestamp: Date.now()
     };
     
-    // Base URL for the new tab
+    // Base URL for the new tab - No longer adding parameters to keep URL clean
     const baseUrl = request.baseUrl;
     
-    // Create a special URL with a query param to indicate this is for merged printing
-    const mergedPrintUrl = `${baseUrl}?merged_print=true&timestamp=${Date.now()}`;
-    
-    // Open the new tab
-    chrome.tabs.create({ url: mergedPrintUrl }, (tab) => {
+    // Create a clean URL without query parameters
+    chrome.tabs.create({ url: baseUrl }, (tab) => {
       console.log(`[Background] Created merged tab with ID: ${tab.id}`);
       
       // Execute a content script in the new tab after it loads
@@ -119,6 +116,14 @@ function openTabsSimultaneously(urls) {
 // This function will be injected into the merged print tab to set up the UI
 function setupMergedPrintPage() {
   console.log('[MergedPrint] Setting up merged print page');
+  
+  // Add page unload warning
+  window.addEventListener('beforeunload', (event) => {
+    // Show confirmation dialog when user tries to close or reload
+    event.preventDefault();
+    event.returnValue = 'You have unsaved changes. Are you sure you want to leave this page?';
+    return event.returnValue;
+  });
   
   // Add a loading indicator
   const loadingDiv = document.createElement('div');
