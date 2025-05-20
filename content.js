@@ -29,7 +29,7 @@ function loadConfig() {
 // Load config immediately when script runs
 loadConfig();
 
-// Function to add the print button with dropdown - only called once
+// Function to add the print button - only called once
 function addPrintButton() {
   console.log("[Content] Attempting to add print button to page");
   
@@ -78,50 +78,67 @@ function addPrintButton() {
             return;
           }
           
-          // Create a container for the print button and dropdown
-          const printButtonGroup = document.createElement('span');
-          printButtonGroup.className = 'bulk-print-group';
-          printButtonGroup.style.marginLeft = '4px';
-          printButtonGroup.style.display = 'inline-flex';
-          
-          // Create the print mode dropdown
-          const printModeSelect = document.createElement('select');
-          printModeSelect.className = 'bulk-print-mode form-control';
-          printModeSelect.style.marginRight = '4px';
-          printModeSelect.style.height = '100%';
-          printModeSelect.style.padding = '0 8px';
-          printModeSelect.style.borderRadius = '4px 0 0 4px';
-          
-          // Add options to the dropdown
-          const individualOption = document.createElement('option');
-          individualOption.value = 'individual';
-          individualOption.textContent = 'Individual';
-          individualOption.selected = true;
-          
-          const mergeOption = document.createElement('option');
-          mergeOption.value = 'merge';
-          mergeOption.textContent = 'Merge';
-          
-          printModeSelect.appendChild(individualOption);
-          printModeSelect.appendChild(mergeOption);
-          
-          // Create the print button
+          // Create the print button without dropdown
           const printButton = document.createElement('button');
           printButton.type = 'button';
           printButton.className = 'btn btn-dark bulk-print-btn';
           printButton.textContent = 'Print';
+          printButton.style.marginLeft = '4px';
           
-          // Add elements to the container
-          printButtonGroup.appendChild(printModeSelect);
-          printButtonGroup.appendChild(printButton);
+          // Append the button after the "Deliver" button
+          targetContainer.appendChild(printButton);
+          console.log("[Content] Print button successfully added to the page");
           
-          // Append the button group after the "Deliver" button
-          targetContainer.appendChild(printButtonGroup);
-          console.log("[Content] Print button with dropdown successfully added to the page");
+          // Create modal for print options (hidden initially)
+          const modalHtml = `
+            <div id="printOptionsModal" style="display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; 
+                 overflow: auto; background-color: rgba(0,0,0,0.4);">
+              <div style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 300px; border-radius: 5px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+                <h4 style="margin-top: 0;">Print Options</h4>
+                <div style="display: flex; flex-direction: column; gap: 10px; margin: 20px 0;">
+                  <button id="individualPrintBtn" class="btn btn-dark" style="padding: 10px;">Individual</button>
+                  <button id="mergePrintBtn" class="btn btn-dark" style="padding: 10px;">Merge</button>
+                </div>
+                <button id="closeModalBtn" style="background: none; border: none; position: absolute; right: 10px; top: 10px; 
+                       font-size: 20px; cursor: pointer;">&times;</button>
+              </div>
+            </div>
+          `;
           
-          // Add click event listener
+          // Add modal to body
+          const modalContainer = document.createElement('div');
+          modalContainer.innerHTML = modalHtml;
+          document.body.appendChild(modalContainer);
+          
+          // Get modal elements
+          const modal = document.getElementById('printOptionsModal');
+          const closeBtn = document.getElementById('closeModalBtn');
+          const individualBtn = document.getElementById('individualPrintBtn');
+          const mergeBtn = document.getElementById('mergePrintBtn');
+          
+          // Add click event listener to print button - shows modal
           printButton.addEventListener('click', () => {
-            console.log("[Content] Print button clicked");
+            console.log("[Content] Print button clicked, showing options modal");
+            modal.style.display = 'block';
+          });
+          
+          // Close modal when clicking the close button
+          closeBtn.addEventListener('click', () => {
+            modal.style.display = 'none';
+          });
+          
+          // Close modal when clicking outside
+          window.addEventListener('click', (event) => {
+            if (event.target === modal) {
+              modal.style.display = 'none';
+            }
+          });
+          
+          // Individual print button handler
+          individualBtn.addEventListener('click', () => {
+            console.log("[Content] Individual print option selected");
+            modal.style.display = 'none';
+            
             // Use the global config directly - no need to reload
             if (!appConfig.urlPrefix || appConfig.urlPrefix.trim() === '') {
               console.error("[Content] Error: URL prefix not configured in config.json");
@@ -129,15 +146,29 @@ function addPrintButton() {
               return;
             }
             
-            // Get the selected print mode
-            const printMode = printModeSelect.value;
-            console.log(`[Content] Selected print mode: ${printMode}`);
-            
-            console.log("[Content] Calling bulkPrintDeliveries with config:", appConfig);
             bulkPrintDeliveries({
               urlPrefix: appConfig.urlPrefix,
               urlSuffix: appConfig.urlSuffix || '',
-              mode: printMode
+              mode: 'individual'
+            });
+          });
+          
+          // Merge print button handler
+          mergeBtn.addEventListener('click', () => {
+            console.log("[Content] Merge print option selected");
+            modal.style.display = 'none';
+            
+            // Use the global config directly - no need to reload
+            if (!appConfig.urlPrefix || appConfig.urlPrefix.trim() === '') {
+              console.error("[Content] Error: URL prefix not configured in config.json");
+              alert('Error: URL prefix not configured in config.json.');
+              return;
+            }
+            
+            bulkPrintDeliveries({
+              urlPrefix: appConfig.urlPrefix,
+              urlSuffix: appConfig.urlSuffix || '',
+              mode: 'merge'
             });
           });
         } else {
@@ -251,9 +282,9 @@ function bulkPrintDeliveries(urlConfig) {
     // New behavior - open single tab with multiple iframes
     console.log(`[Content] Using merge mode, sending message to create merged view with ${printUrls.length} items`);
     
-    // Get base domain to construct the URL for the new tab
+    // Get base domain to construct the URL for the new tab - now using a clean URL without parameters
     const currentUrl = new URL(window.location.href);
-    const baseUrl = `${currentUrl.protocol}//${currentUrl.hostname}`;
+    const baseUrl = `${currentUrl.protocol}//${currentUrl.hostname}${currentUrl.pathname}`;
     
     chrome.runtime.sendMessage({
       action: 'openMergedTab',
