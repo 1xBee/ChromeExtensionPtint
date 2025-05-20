@@ -1,6 +1,9 @@
 // Global config variable that will be loaded once
 let appConfig = null;
 
+// Storage for print data when using merged view
+let pendingPrintData = null;
+
 // Load configuration from config.json - only done once
 function loadConfig() {
   // If we already have the config, return it as a resolved promise
@@ -35,10 +38,56 @@ loadConfig();
 // Handle messages from content script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('[Background] Message received:', request);
+  
   if (request.action === 'openAllTabs') {
     console.log(`[Background] Opening ${request.urls.length} tabs for printing`);
     // Open all tabs in the current window
     openTabsSimultaneously(request.urls);
+  }
+  
+  else if (request.action === 'openMergedTab') {
+    console.log(`[Background] Opening merged tab with ${request.printItems.length} items`);
+    
+    // Store the print data for retrieval by the new tab
+    pendingPrintData = {
+      items: request.printItems,
+      timestamp: Date.now()
+    };
+    
+    // Base URL for the new tab
+    const baseUrl = request.baseUrl;
+    
+    // Create a special URL with a query param to indicate this is for merged printing
+    const mergedPrintUrl = `${baseUrl}?merged_print=true&timestamp=${Date.now()}`;
+    
+    // Open the new tab
+    chrome.tabs.create({ url: mergedPrintUrl }, (tab) => {
+      console.log(`[Background] Created merged tab with ID: ${tab.id}`);
+      
+      // Execute a content script in the new tab after it loads
+      chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo, updatedTab) {
+        // Only proceed if this is our tab and it's fully loaded
+        if (tabId === tab.id && changeInfo.status === 'complete') {
+          console.log(`[Background] Merged tab (${tab.id}) fully loaded, injecting content script`);
+          
+          // Remove this listener since we only need it once
+          chrome.tabs.onUpdated.removeListener(listener);
+          
+          // Execute a script to transform the page
+          chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            function: setupMergedPrintPage,
+          });
+        }
+      });
+    });
+  }
+  
+  else if (request.action === 'getPrintData') {
+    console.log('[Background] Print data requested by merged tab');
+    // Send the pending print data and then clear it
+    sendResponse({ printData: pendingPrintData });
+    return true; // Keep the messaging channel open for the async response
   }
 });
 
@@ -64,5 +113,106 @@ function openTabsSimultaneously(urls) {
       });
     });
     console.log('[Background] All tabs created');
+  });
+}
+
+// This function will be injected into the merged print tab to set up the UI
+function setupMergedPrintPage() {
+  console.log('[MergedPrint] Setting up merged print page');
+  
+  // Add a loading indicator
+  const loadingDiv = document.createElement('div');
+  loadingDiv.innerHTML = '<h1>Preparing print view...</h1><p>Please wait while we load all delivery items.</p>';
+  loadingDiv.style.textAlign = 'center';
+  loadingDiv.style.margin = '20px';
+  loadingDiv.style.fontFamily = 'Arial, sans-serif';
+  
+  // Save the original body content in case we need to restore it
+  const originalContent = document.body.innerHTML;
+  
+  // Clear the page and show loading message
+  document.body.innerHTML = '';
+  document.body.appendChild(loadingDiv);
+  
+  // Request the print data from the background script
+  chrome.runtime.sendMessage({ action: 'getPrintData' }, (response) => {
+    if (!response || !response.printData || !response.printData.items || response.printData.items.length === 0) {
+      console.error('[MergedPrint] No valid print data received');
+      loadingDiv.innerHTML = '<h1>Error</h1><p>Failed to load delivery items. Please try again.</p>';
+      return;
+    }
+    
+    console.log(`[MergedPrint] Received print data with ${response.printData.items.length} items`);
+    const printItems = response.printData.items;
+    
+    // Create the container for all print frames
+    const container = document.createElement('div');
+    container.className = 'bulk-print-container';
+    
+    // Add header with print instructions
+    const header = document.createElement('div');
+    header.className = 'bulk-print-header';
+    header.innerHTML = `
+      <h1>Bulk Print View</h1>
+      <p>Total items: ${printItems.length}</p>
+      <p>Use your browser's print function (Ctrl+P or Cmd+P) to print all items.</p>
+      <button id="printNowBtn" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 10px 0;">Print Now</button>
+    `;
+    header.style.textAlign = 'center';
+    header.style.margin = '20px 0';
+    header.style.pageBreakAfter = 'always';
+    container.appendChild(header);
+    
+    // Create style element for print styling
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: Arial, sans-serif;
+      }
+      .print-frame {
+        width: 100%;
+        height: 11.5in;
+        border: none;
+        margin-bottom: 0.5in;
+        page-break-after: always;
+      }
+      @media print {
+        .bulk-print-header {
+          display: none;
+        }
+        .print-frame {
+          page-break-after: always;
+        }
+      }
+    `;
+    document.head.appendChild(styleElement);
+    
+    // Create iframes for each delivery
+    printItems.forEach((item, index) => {
+      console.log(`[MergedPrint] Creating iframe for item ${index+1}/${printItems.length}: ${item.id}`);
+      
+      // Create the iframe
+      const iframe = document.createElement('iframe');
+      iframe.className = 'print-frame';
+      iframe.src = item.url;
+      iframe.title = `Delivery ${item.id}`;
+      iframe.setAttribute('data-delivery-id', item.id);
+      
+      // Add iframe to container
+      container.appendChild(iframe);
+    });
+    
+    // Replace loading with the container
+    document.body.innerHTML = '';
+    document.body.appendChild(container);
+    
+    // Add event listener to the print button
+    document.getElementById('printNowBtn').addEventListener('click', () => {
+      window.print();
+    });
+    
+    console.log('[MergedPrint] Page setup complete');
   });
 }
