@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Bulk Delivery Print",
-  "version": "1.4",
-  "description": "Automatically prints multiple delivery documents with one click",
+  "version": "1.5",
+  "description": "Automatically prints multiple delivery documents with one click, supporting both individual and merged views",
   "permissions": ["activeTab", "scripting", "tabs"],
   "action": {
     "default_title": "Print Deliveries",
@@ -14,7 +14,7 @@
   "content_scripts": [
     {
       "matches": ["*://*/Deliveries", "*://*/Deliveries?*"],
-      "js": ["content.js","content_dateType.js"]
+      "js": ["content.js", "content_dateType.js"]
     }
   ],
   "web_accessible_resources": [
@@ -22,5 +22,6 @@
       "resources": ["config.json"],
       "matches": ["<all_urls>"]
     }
-  ]
+  ],
+  "host_permissions": ["<all_urls>"]
 }
