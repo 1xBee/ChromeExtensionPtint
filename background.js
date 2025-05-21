@@ -55,9 +55,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     };
     
     // Base URL for the new tab - No longer adding parameters to keep URL clean
-    const baseUrl = request.baseUrl;
-    const urlObj = new URL(baseUrl);
-    const domain = urlObj.origin;
+    const domain = request.domain;
 
     // Create a clean URL without query parameters
     chrome.tabs.create({ url: domain }, (tab) => {
