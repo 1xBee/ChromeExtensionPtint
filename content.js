@@ -255,11 +255,11 @@ function bulkPrintDeliveries(urlConfig) {
     
     // Get base domain to construct the URL for the new tab - now using a clean URL without parameters
     const currentUrl = new URL(window.location.href);
-    const baseUrl = `${currentUrl.protocol}//${currentUrl.hostname}${currentUrl.pathname}`;
+    const domain = currentUrl.origin;
     
     chrome.runtime.sendMessage({
       action: 'openMergedTab',
-      baseUrl: baseUrl,
+      domain: domain,
       printItems: printUrls
     });
   }
