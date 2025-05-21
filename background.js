@@ -56,9 +56,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     
     // Base URL for the new tab - No longer adding parameters to keep URL clean
     const baseUrl = request.baseUrl;
-    
+    const urlObj = new URL(baseUrl);
+    const domain = urlObj.origin;
+
     // Create a clean URL without query parameters
-    chrome.tabs.create({ url: baseUrl }, (tab) => {
+    chrome.tabs.create({ url: domain }, (tab) => {
       console.log(`[Background] Created merged tab with ID: ${tab.id}`);
       
       // Execute a content script in the new tab after it loads
@@ -152,7 +154,9 @@ function setupMergedPrintPage() {
     
     // Create the container for all print frames
     const container = document.createElement('div');
+    const iframeContainer = document.createElement('div');
     container.className = 'bulk-print-container';
+    iframeContainer.className = 'iframe-container';
     
     // Add header with print instructions
     const header = document.createElement('div');
@@ -160,11 +164,9 @@ function setupMergedPrintPage() {
     header.innerHTML = `
       <h1>Bulk Print View</h1>
       <p>Total items: ${printItems.length}</p>
-      <p>Use your browser's print function (Ctrl+P or Cmd+P) to print all items.</p>
-      <button id="printNowBtn" style="padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; margin: 10px 0;">Print Now</button>
+      <button id="printNowBtn" class="btn btn-dark">Print Now</button>
     `;
-    header.style.textAlign = 'center';
-    header.style.margin = '20px 0';
+    header.style.margin = '55px';
     header.style.pageBreakAfter = 'always';
     container.appendChild(header);
     
@@ -177,11 +179,18 @@ function setupMergedPrintPage() {
         font-family: Arial, sans-serif;
       }
       .print-frame {
-        width: 100%;
+        box-sizing: border-box;
+        width: calc(50% - 20px);
         height: 11.5in;
         border: none;
-        margin-bottom: 0.5in;
+        margin: 10px;
+        padding: 3px;
+        border: 1px solid grey;
         page-break-after: always;
+      }
+      .iframe-container{
+        transform: scale(.9);
+        transform-origin: top;
       }
       @media print {
         .bulk-print-header {
@@ -189,6 +198,14 @@ function setupMergedPrintPage() {
         }
         .print-frame {
           page-break-after: always;
+          width: 100%;
+          height: 11.5in;
+          margin: none;
+          padding: none;
+          border: none;
+        }
+        .iframe-container{
+          transform: scale(1);
         }
       }
     `;
@@ -206,8 +223,10 @@ function setupMergedPrintPage() {
       iframe.setAttribute('data-delivery-id', item.id);
       
       // Add iframe to container
-      container.appendChild(iframe);
+      iframeContainer.appendChild(iframe);
     });
+    // Add iframe-container to main container
+    container.appendChild(iframeContainer);
     
     // Replace loading with the container
     document.body.innerHTML = '';
