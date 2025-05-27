@@ -183,6 +183,7 @@ function setupMergedPrintPage() {
         margin: 10px;
         padding: 20px;
         border: 2.5px solid #4e221f;
+        border-radius: 5px;
         page-break-after: always;
       }
       .iframe-container{
