@@ -178,12 +178,11 @@ function setupMergedPrintPage() {
       }
       .print-frame {
         box-sizing: border-box;
-        width: calc(50% - 20px);
+        width: calc(50% - 40px);
         height: 11.5in;
-        border: none;
         margin: 10px;
-        padding: 3px;
-        border: 1px solid grey;
+        padding: 20px;
+        border: 2.5px solid #4e221f;
         page-break-after: always;
       }
       .iframe-container{
