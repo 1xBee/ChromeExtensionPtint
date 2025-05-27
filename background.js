@@ -197,9 +197,9 @@ function setupMergedPrintPage() {
           page-break-after: always;
           width: 100%;
           height: 11.5in;
-          margin: none;
-          padding: none;
-          border: none;
+          margin: 0;
+          padding: 0;
+          border: 0;
         }
         .iframe-container{
           transform: scale(1);
