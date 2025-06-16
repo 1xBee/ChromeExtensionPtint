@@ -163,6 +163,7 @@ function setupMergedPrintPage() {
       <h1>Bulk Print View</h1>
       <p>Total items: ${printItems.length}</p>
       <button id="printNowBtn" class="btn btn-dark">Print Now</button>
+      <button id="sortBtn" class="btn btn-secondary" style="margin-left: 10px;">Sort by Address</button>
     `;
     header.style.margin = '55px';
     header.style.pageBreakAfter = 'always';
@@ -189,6 +190,29 @@ function setupMergedPrintPage() {
       .iframe-container{
         transform: scale(.9);
         transform-origin: top;
+      }
+      .btn {
+        padding: 6px 12px;
+        margin: 0 4px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .btn-dark {
+        background-color: #343a40;
+        color: white;
+      }
+      .btn-secondary {
+        background-color: #6c757d;
+        color: white;
+      }
+      .btn:hover {
+        opacity: 0.8;
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
       }
       @media print {
         .bulk-print-header {
@@ -235,6 +259,180 @@ function setupMergedPrintPage() {
       window.print();
     });
     
+    // Add event listener to the sort button
+    document.getElementById('sortBtn').addEventListener('click', () => {
+      console.log('[MergedPrint] Sort button clicked');
+      sortByAddress();
+    });
+    
     console.log('[MergedPrint] Page setup complete');
   });
+  
+  // Function to sort invoices by address
+  function sortByAddress() {
+    console.log('[MergedPrint] Starting sort by address');
+    
+    const sortBtn = document.getElementById('sortBtn');
+    const printBtn = document.getElementById('printNowBtn');
+    
+    // Disable buttons during processing
+    sortBtn.disabled = true;
+    sortBtn.textContent = 'Sorting...';
+    printBtn.disabled = true;
+    
+    const iframes = document.querySelectorAll('.print-frame');
+    console.log(`[MergedPrint] Found ${iframes.length} iframes to process`);
+    
+    const extractedContent = [];
+    let processedCount = 0;
+    
+    // Function to check if all iframes are processed
+    function checkAllProcessed() {
+      if (processedCount === iframes.length) {
+        console.log('[MergedPrint] All iframes processed, starting sort');
+        performSort(extractedContent);
+      }
+    }
+    
+    // Process each iframe
+    iframes.forEach((iframe, index) => {
+      const deliveryId = iframe.getAttribute('data-delivery-id');
+      console.log(`[MergedPrint] Processing iframe ${index + 1}/${iframes.length} - Delivery ID: ${deliveryId}`);
+      
+      // Wait for iframe to load if not already loaded
+      iframe.addEventListener('load', function() {
+        try {
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+          
+          // Extract invoice content
+          const invoiceCont = iframeDoc.querySelector('#invoiceCont');
+          if (!invoiceCont) {
+            console.warn(`[MergedPrint] No #invoiceCont found in iframe ${deliveryId}`);
+            processedCount++;
+            checkAllProcessed();
+            return;
+          }
+          
+          // Clone the invoice content
+          let clonedInvoice = invoiceCont.cloneNode(true);
+          
+          // Find and truncate at first-page-end-marker
+          const endMarker = clonedInvoice.querySelector('.first-page-end-marker');
+          if (endMarker) {
+            console.log(`[MergedPrint] Found end marker in ${deliveryId}, truncating content`);
+            
+            // Remove everything after the end marker
+            let currentNode = endMarker.nextSibling;
+            while (currentNode) {
+              const nextNode = currentNode.nextSibling;
+              currentNode.remove();
+              currentNode = nextNode;
+            }
+            
+            // Remove the end marker itself
+            endMarker.remove();
+            
+            // Add closing div if needed
+            const lastChild = clonedInvoice.lastElementChild;
+            if (lastChild && lastChild.tagName !== 'DIV') {
+              const closingDiv = document.createElement('div');
+              clonedInvoice.appendChild(closingDiv);
+            }
+          }
+          
+          // Extract vendor info and address
+          const vendorInfo = iframeDoc.querySelector('#vendorInfo');
+          let address = '';
+          let sortKey = '';
+          
+          if (vendorInfo) {
+            const innerHTML = vendorInfo.innerHTML;
+            const brMatches = innerHTML.split('<br>');
+            
+            // Look for address between <br> tags
+            for (let i = 1; i < brMatches.length - 1; i++) {
+              const content = brMatches[i].trim();
+              if (content && !content.includes('Phone:') && !content.includes('Email:')) {
+                address = content.replace(/<[^>]*>/g, '').trim(); // Remove any HTML tags
+                break;
+              }
+            }
+            
+            console.log(`[MergedPrint] Extracted address for ${deliveryId}: "${address}"`);
+            
+            // Create sort key
+            const numberMatch = address.match(/^(\d+)/);
+            if (numberMatch) {
+              // Numeric address - pad with zeros for proper sorting
+              const streetNum = parseInt(numberMatch[1]);
+              sortKey = streetNum.toString().padStart(10, '0') + '_' + address;
+            } else {
+              // Non-numeric address - sort after all numeric addresses
+              sortKey = 'zzz_' + address.toLowerCase();
+            }
+          }
+          
+          // Add print-frame class to maintain styling
+          clonedInvoice.classList.add('print-frame');
+          
+          extractedContent.push({
+            deliveryId: deliveryId,
+            content: clonedInvoice,
+            address: address,
+            sortKey: sortKey
+          });
+          
+          console.log(`[MergedPrint] Processed ${deliveryId} - Sort key: ${sortKey}`);
+          
+        } catch (error) {
+          console.error(`[MergedPrint] Error processing iframe ${deliveryId}:`, error);
+        }
+        
+        processedCount++;
+        checkAllProcessed();
+      });
+      
+      // If iframe is already loaded, trigger the load event
+      if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
+        iframe.dispatchEvent(new Event('load'));
+      }
+    });
+    
+    // Function to perform the actual sorting and DOM replacement
+    function performSort(contentArray) {
+      console.log('[MergedPrint] Starting sort operation');
+      
+      // Sort by sort key
+      contentArray.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+      
+      console.log('[MergedPrint] Sort order:');
+      contentArray.forEach((item, index) => {
+        console.log(`  ${index + 1}. ${item.deliveryId} - ${item.address} (${item.sortKey})`);
+      });
+      
+      // Get the iframe container
+      const iframeContainer = document.querySelector('.iframe-container');
+      
+      // Clear the iframe container
+      iframeContainer.innerHTML = '';
+      
+      // Add sorted content
+      contentArray.forEach(item => {
+        iframeContainer.appendChild(item.content);
+      });
+      
+      console.log('[MergedPrint] Sort complete - DOM updated with sorted content');
+      
+      // Re-enable buttons and update text
+      sortBtn.disabled = false;
+      sortBtn.textContent = 'Sorted ✓';
+      printBtn.disabled = false;
+      
+      // Update header to show sorted status
+      const headerP = document.querySelector('.bulk-print-header p');
+      if (headerP) {
+        headerP.textContent = `Total items: ${contentArray.length} (Sorted by Address)`;
+      }
+    }
+  }
 }
